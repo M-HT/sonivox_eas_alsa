@@ -1,0 +1,3 @@
+[submodule "sonivox"]
+	path = sonivox
+	url = https://github.com/pedrolcl/sonivox.git
