@@ -109,7 +109,7 @@ static void subscription_event(snd_seq_event_t *event)
     }
 }
 
-static void write_event(uint8_t *event, unsigned int length)
+static void write_event(const uint8_t *event, unsigned int length)
 {
     int read_index, write_index;
     unsigned int free_space;
@@ -174,9 +174,10 @@ static void process_event(snd_seq_event_t *event, uint8_t *running_status)
             break;
 
         case SND_SEQ_EVENT_NOTEOFF:
-            data[0] = 0x80 | event->data.note.channel;
+            // send note off event as note on with zero velocity to increase the chance of using running status
+            data[0] = 0x90 | event->data.note.channel;
             data[1] = event->data.note.note;
-            data[2] = event->data.note.velocity;
+            data[2] = 0;
             length = 3;
 
             if (data[0] != *running_status)
