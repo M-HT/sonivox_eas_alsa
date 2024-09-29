@@ -7,10 +7,6 @@ find_package(ALSA REQUIRED)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-get_target_property(SONIVOX_HEADERS sonivox::sonivox INTERFACE_INCLUDE_DIRECTORIES)
-
-target_include_directories(eas_alsadrv PRIVATE ${SONIVOX_HEADERS})
-
 target_link_libraries(eas_alsadrv ALSA::ALSA sonivox::sonivox Threads::Threads)
 
 list(APPEND CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
