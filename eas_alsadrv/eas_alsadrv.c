@@ -54,6 +54,7 @@ static int midi_port_id;
 static pthread_t midi_thread;
 static snd_pcm_t *midi_pcm;
 static volatile int midi_init_state;
+static volatile int midi_event_written;
 
 static int polyphony, master_volume, daemonize;
 static int reverb_preset, reverb_wet;
@@ -155,6 +156,8 @@ static void write_event(const uint8_t *event, unsigned int length)
 
     // update global volatile variable
     event_write_index = write_index;
+
+    midi_event_written = 1;
 }
 
 static void process_event(snd_seq_event_t *event, uint8_t *running_status)
@@ -1480,11 +1483,44 @@ static int output_subbuffer(int num)
 static void main_loop(void) __attribute__((noinline));
 static void main_loop(void)
 {
+    int is_paused;
+    struct timespec last_written_time, current_time;
+#if defined(CLOCK_MONOTONIC_RAW)
+    clockid_t monotonic_clock_id;
+
+    #define MONOTONIC_CLOCK_TYPE monotonic_clock_id
+
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &current_time))
+    {
+        monotonic_clock_id = CLOCK_MONOTONIC;
+    }
+    else
+    {
+        monotonic_clock_id = CLOCK_MONOTONIC_RAW;
+    }
+#else
+    #define MONOTONIC_CLOCK_TYPE CLOCK_MONOTONIC
+#endif
+
     for (int i = 2; i < num_subbuffers; i++)
     {
         output_subbuffer(i);
     }
 
+    is_paused = 0;
+    // pause pcm playback at the beginning
+    if (0 == snd_pcm_pause(midi_pcm, 1))
+    {
+        is_paused = 1;
+        printf("PCM playback paused\n");
+    }
+    else
+    {
+        // if pausing doesn't work then set time of last written event as current time, so the next attempt to pause will be in 60 seconds
+        clock_gettime(MONOTONIC_CLOCK_TYPE, &last_written_time);
+    }
+
+    midi_event_written = 0;
     midi_init_state = 1;
 
     while (1)
@@ -1496,6 +1532,45 @@ static void main_loop(void)
         req.tv_sec = 0;
         req.tv_nsec = 10000000;
         nanosleep(&req, NULL);
+
+        if (midi_event_written)
+        {
+            midi_event_written = 0;
+
+            // remember time of last written event
+            clock_gettime(MONOTONIC_CLOCK_TYPE, &last_written_time);
+
+            if (is_paused)
+            {
+                is_paused = 0;
+                snd_pcm_pause(midi_pcm, 0);
+                printf("PCM playback unpaused\n");
+            }
+        }
+        else
+        {
+            if (is_paused)
+            {
+                continue;
+            }
+
+            clock_gettime(MONOTONIC_CLOCK_TYPE, &current_time);
+            // if more than 60 seconds elapsed from last written event, then pause pcm playback
+            if (current_time.tv_sec - last_written_time.tv_sec > 60)
+            {
+                if (0 == snd_pcm_pause(midi_pcm, 1))
+                {
+                    is_paused = 1;
+                    printf("PCM playback paused\n");
+                    continue;
+                }
+                else
+                {
+                    // if pausing doesn't work then set time of last written event as current time, so the next attempt to pause will be in 60 seconds
+                    last_written_time = current_time;
+                }
+            }
+        }
 
         pcmstate = snd_pcm_state(midi_pcm);
         if (pcmstate == SND_PCM_STATE_XRUN)
