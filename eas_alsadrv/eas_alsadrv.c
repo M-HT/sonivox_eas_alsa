@@ -1,6 +1,6 @@
 /**
  *
- *  Copyright (C) 2022-2024 Roman Pauer
+ *  Copyright (C) 2022-2025 Roman Pauer
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy of
  *  this software and associated documentation files (the "Software"), to deal in
@@ -34,7 +34,6 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <alsa/asoundlib.h>
-#define DLS_SYNTHESIZER 1
 #include <eas.h>
 #include <eas_reverb.h>
 #include <eas_chorus.h>
